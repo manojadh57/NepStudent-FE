@@ -1,13 +1,18 @@
+// TEACHER NOTE:
+// One axios instance for the whole app.
+// - Reads API base from VITE_BASE_URL
+// - Sends Bearer token from localStorage on every request
+
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL, // e.g., http://localhost:8005/api/v1
-  withCredentials: true,
+  baseURL: import.meta.env.VITE_BASE_URL,
+  withCredentials: true, // keep if you use cookies; harmless if not
 });
 
 api.interceptors.request.use((config) => {
-  const t = localStorage.getItem("accessToken");
-  if (t) config.headers.Authorization = `Bearer ${t}`;
+  const token = localStorage.getItem("accessToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 

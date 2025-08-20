@@ -1,52 +1,35 @@
-import React from "react";
+// TEACHER NOTE:
+// Prefer `post.__author` produced by normalizeAuthor().
+// Fall back safely if needed.
+
 import { Link } from "react-router-dom";
-import { FaArrowUp, FaArrowDown } from "react-icons/fa";
 
 export default function SwissPostCard({ post }) {
-  const {
-    _id,
-    title,
-    body,
-    author,
-    createdAt,
-    comments = [],
-    upvotes = 0,
-    downvotes = 0,
-  } = post;
+  if (!post) return null;
 
-  const date = new Date(createdAt).toLocaleDateString("en-GB");
+  const author =
+    post.__author ||
+    post?.user?.username ||
+    post?.username ||
+    post?.author ||
+    "anonymous";
+
+  const created = post.createdAt
+    ? new Date(post.createdAt).toLocaleDateString()
+    : "";
 
   return (
-    <div className="border rounded-lg p-4 mb-4 flex flex-col gap-1 bg-white">
-      {/* Voting */}
-      <div className="flex items-center gap-2 text-gray-500">
-        <FaArrowUp className="cursor-pointer hover:text-black" />
-        <span className="font-bold">{upvotes - downvotes}</span>
-        <FaArrowDown className="cursor-pointer hover:text-black" />
-      </div>
-
-      {/* Title + Link */}
-      <Link
-        to={`/post/${_id}`}
-        className="text-xl font-bold hover:underline text-black"
-      >
-        {title}
+    <article className="border p-3">
+      <div className="text-sm">↑0 ↓</div>
+      <Link to={`/post/${post._id}`} className="underline font-medium">
+        {post.title}
       </Link>
-
-      {/* Author + Date */}
-      <div className="text-sm text-gray-400 mb-1">
-        by {author?.username || "anonymous"} • {date}
+      <div className="text-sm mt-1 opacity-70">
+        by {author}
+        {created && ` • ${created}`}
       </div>
-
-      {/* Body (short preview) */}
-      <p className="text-sm text-gray-700 line-clamp-2">{body}</p>
-
-      {/* Actions */}
-      <div className="flex gap-4 mt-2 text-sm text-gray-500">
-        <span>{comments.length} comments</span>
-        <span className="cursor-pointer hover:underline">share</span>
-        <span className="cursor-pointer hover:underline">save</span>
-      </div>
-    </div>
+      <p className="mt-2 whitespace-pre-wrap">{post.body}</p>
+      <div className="mt-2 text-sm opacity-70">0 comments • share • save</div>
+    </article>
   );
 }

@@ -1,55 +1,79 @@
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import axios from "../lib/api";
+// TEACHER NOTE:
+// - normalizeAuthor() reads username from multiple shapes (populated or not).
+// - After createPost, we inject current user's username so UI shows instantly.
 
-// Existing fetchPosts thunk
-export const fetchPosts = createAsyncThunk("posts/fetchPosts", async () => {
-  const res = await axios.get("/posts");
-  return res.data.posts;
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import api from "../lib/api";
+
+function normalizeAuthor(p) {
+  const username =
+    p?.user?.username || // preferred: populated by backend
+    p?.username || // sometimes APIs flatten this
+    p?.author || // legacy/alternate
+    "anonymous";
+  return { ...p, __author: username }; // __author = UI-friendly field
+}
+
+export const fetchPosts = createAsyncThunk("posts/fetch", async (page = 1) => {
+  const { data } = await api.get(`/posts?page=${page}`);
+  const list = Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data)
+    ? data
+    : [];
+  return list.map(normalizeAuthor);
 });
 
-// ✅ NEW: Create Post thunk
 export const createPost = createAsyncThunk(
-  "posts/createPost",
-  async (postData, { rejectWithValue }) => {
-    try {
-      const res = await axios.post("/posts", postData);
-      return res.data.post;
-    } catch (err) {
-      return rejectWithValue(
-        err.response?.data?.message || "Failed to create post"
-      );
-    }
+  "posts/create",
+  async ({ title, body }) => {
+    const { data } = await api.post("/posts", { title, body });
+    return data.post || data; // handle both shapes
   }
 );
 
 const postSlice = createSlice({
   name: "posts",
-  initialState: {
-    list: [],
-    loading: false,
-    error: null,
-  },
+  initialState: { items: [], loading: false, error: "" },
   reducers: {},
-  extraReducers: (builder) => {
-    builder
-      // fetchPosts
-      .addCase(fetchPosts.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(fetchPosts.fulfilled, (state, action) => {
-        state.loading = false;
-        state.list = action.payload;
-      })
-      .addCase(fetchPosts.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      })
+  extraReducers: (b) => {
+    b.addCase(fetchPosts.pending, (s) => {
+      s.loading = true;
+      s.error = "";
+    });
+    b.addCase(fetchPosts.fulfilled, (s, a) => {
+      s.loading = false;
+      s.items = a.payload;
+    });
+    b.addCase(fetchPosts.rejected, (s, a) => {
+      s.loading = false;
+      s.error = a.error.message;
+    });
 
-      // ✅ createPost
-      .addCase(createPost.fulfilled, (state, action) => {
-        state.list.unshift(action.payload); // Add new post to top
-      });
+    b.addCase(createPost.fulfilled, (s, a) => {
+      const serverPost = a.payload;
+
+      // 1) read "me" from localStorage (set by authSlice on login)
+      const me = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("user") || "null");
+        } catch {
+          return null;
+        }
+      })();
+
+      // 2) patch username so UI never shows "anonymous" after creating
+      const patched = {
+        ...serverPost,
+        user: {
+          ...(serverPost.user || {}),
+          username: me?.username || serverPost?.user?.username,
+        },
+      };
+
+      // 3) normalize and prepend
+      s.items = [normalizeAuthor(patched), ...s.items];
+    });
   },
 });
 
